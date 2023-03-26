@@ -16,13 +16,20 @@ enum Command {
     Get,
     #[serde(alias = "SET")]
     Set,
+    #[serde(alias = "DEL")]
+    Delete,
+    #[serde(alias = "EXISTS")]
+    Exists,
+    #[serde(alias = "KEYS")]
+    Keys,
 }
 
 #[derive(Debug, Deserialize)]
 struct Request {
     command: Command,
-    key: String,
+    key: Option<String>,
     value: Option<String>,
+    pattern: Option<String>,
 }
 
 fn parse_request(request_data: &str) -> Result<Request, Error> {
@@ -45,7 +52,11 @@ async fn handle_connection(mut socket: TcpStream, store: KeyValueStore) {
                 Command::Get => {
                     let response = {
                         let store_lock = store.lock().await;
-                        store_lock.get(&request.key).cloned()
+                        if let Some(key) = &request.key {
+                            store_lock.get(key).cloned()
+                        } else {
+                            None
+                        }
                     };
 
                     let response = match response {
@@ -58,12 +69,63 @@ async fn handle_connection(mut socket: TcpStream, store: KeyValueStore) {
                 Command::Set => {
                     if let Some(value) = request.value {
                         let mut store_lock = store.lock().await;
-                        store_lock.insert(request.key, value);
+                        if let Some(key) = request.key {
+                            store_lock.insert(key, value);
+                        }
                         let response = "OK";
                         buf.write_all(response.as_bytes()).await.unwrap();
                         buf.flush().await.unwrap();
                     } else {
                         let response = "Error: Missing value\n";
+                        buf.write_all(response.as_bytes()).await.unwrap();
+                        buf.flush().await.unwrap();
+                    }
+                }
+                Command::Delete => {
+                    if let Some(key) = request.key {
+                        let mut store_lock = store.lock().await;
+                        let removed = store_lock.remove(&key).is_some();
+
+                        let response = if removed { "1\n" } else { "0\n" };
+                        buf.write_all(response.as_bytes()).await.unwrap();
+                        buf.flush().await.unwrap();
+                    } else {
+                        let response = "Error: Missing key\n";
+                        buf.write_all(response.as_bytes()).await.unwrap();
+                        buf.flush().await.unwrap();
+                    }
+                }
+
+                Command::Exists => {
+                    if let Some(key) = request.key {
+                        let store_lock = store.lock().await;
+                        let exists = store_lock.contains_key(&key);
+
+                        let response = if exists { "1\n" } else { "0\n" };
+                        buf.write_all(response.as_bytes()).await.unwrap();
+                        buf.flush().await.unwrap();
+                    } else {
+                        let response = "Error: Missing key\n";
+                        buf.write_all(response.as_bytes()).await.unwrap();
+                        buf.flush().await.unwrap();
+                    }
+                }
+
+                Command::Keys => {
+                    if let Some(pattern) = request.pattern {
+                        let store_lock = store.lock().await;
+                        let pattern_regex = regex::Regex::new(&pattern).unwrap();
+                        let keys: Vec<String> = store_lock
+                            .keys()
+                            .filter(|key| pattern_regex.is_match(key))
+                            .cloned()
+                            .collect();
+
+                        let response = format!("Keys: {:?}\n", keys);
+                        buf.write_all(response.as_bytes()).await.unwrap();
+                        buf.flush().await.unwrap();
+                    } else {
+                        let response = "Error: Missing pattern\n";
                         buf.write_all(response.as_bytes()).await.unwrap();
                         buf.flush().await.unwrap();
                     }
