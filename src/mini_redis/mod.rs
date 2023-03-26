@@ -8,3 +8,6 @@ use tokio::sync::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
 pub type KeyValueStore = Arc<Mutex<HashMap<String, String>>>;
+
+#[cfg(test)]
+mod tests;
