@@ -2,21 +2,22 @@ use serde::Deserialize;
 use serde_json::Error;
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Command {
-    #[serde(alias = "GET")]
     Get,
-    #[serde(alias = "SET")]
     Set,
-    #[serde(alias = "DEL")]
     Delete,
-    #[serde(alias = "EXISTS")]
     Exists,
-    #[serde(alias = "KEYS")]
     Keys,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Request {
+    pub commands: Vec<CommandRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CommandRequest {
     pub command: Command,
     pub key: Option<String>,
     pub value: Option<String>,
