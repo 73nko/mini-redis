@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::mini_redis::request::{parse_request, Command, Request};
 
@@ -64,7 +64,19 @@ async fn get_command_from_request(
     };
 
     let response = match response {
-        Some(value) => format!("Value: {}", value),
+        Some((value, expiration)) => {
+            if let Some(expiration) = expiration {
+                // If the key has expired, delete it and return an error
+                if expiration <= Instant::now() {
+                    delete_command_from_request(store, buf, request).await;
+                    "Key not found".to_string()
+                } else {
+                    format!("Value: {}", value)
+                }
+            } else {
+                format!("Value: {}", value)
+            }
+        }
         None => "Key not found".to_string(),
     };
     buf.write_all(response.as_bytes()).await.unwrap();
@@ -77,9 +89,14 @@ async fn set_command_from_request(
     request: Request,
 ) {
     if let Some(value) = request.value {
+        // If the key has an expiration, set it to the current time + the TTL
+        let expiration = request
+            .expiration
+            .map(|ttl| Instant::now() + Duration::from_secs(ttl));
+
         let mut store_lock = store.lock().await;
         if let Some(key) = request.key {
-            store_lock.insert(key, value);
+            store_lock.insert(key, (value, expiration));
         }
         let response = "OK";
         buf.write_all(response.as_bytes()).await.unwrap();

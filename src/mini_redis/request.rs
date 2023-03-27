@@ -20,6 +20,7 @@ pub struct Request {
     pub command: Command,
     pub key: Option<String>,
     pub value: Option<String>,
+    pub expiration: Option<u64>,
     pub pattern: Option<String>,
 }
 
