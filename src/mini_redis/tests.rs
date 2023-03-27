@@ -1,4 +1,4 @@
-use crate::mini_redis::request::Command;
+use crate::mini_redis::request::{Command, CommandRequest};
 use crate::mini_redis::Request;
 
 #[test]
@@ -9,7 +9,7 @@ fn test_deserialize_set_request() {
         "value": "myvalue"
     }"#;
 
-    let request: Request = serde_json::from_str(json_request).unwrap();
+    let request: CommandRequest = serde_json::from_str(json_request).unwrap();
 
     assert_eq!(request.command, Command::Set);
     assert_eq!(request.key.unwrap(), "mykey");
@@ -22,7 +22,7 @@ fn test_deserialize_get_request() {
         "command": "GET",
         "key": "mykey"
     }"#;
-    let request: Request = serde_json::from_str(json_request).unwrap();
+    let request: CommandRequest = serde_json::from_str(json_request).unwrap();
 
     assert_eq!(request.command, Command::Get);
     assert_eq!(request.key.unwrap(), "mykey");
